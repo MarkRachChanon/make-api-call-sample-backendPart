@@ -121,7 +121,7 @@ exports.createProduct = async (req, res) => {
         name,
         description: description || null,
         price: parseFloat(price),
-        stock: stock || 0,
+        stock: stock ? parseInt(stock, 10) : 0,
         category: category || null,
         imageUrl: imageUrl || null
       }
