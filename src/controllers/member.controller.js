@@ -1,44 +1,17 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// GET /members - ดึงสมาชิกทั้งหมด (พร้อม Filter)
+// GET /members - ดึงสมาชิกทั้งหมด
 exports.getMembers = async (req, res) => {
   try {
-    const { search, email, phone } = req.query;
-
-    // สร้าง where condition
-    const where = {};
-
-    // Filter: ค้นหาจาก firstName หรือ lastName
-    if (search) {
-      where.OR = [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } }
-      ];
-    }
-
-    // Filter: ค้นหาจาก email (exact match)
-    if (email) {
-      where.email = { contains: email };
-    }
-
-    // Filter: ค้นหาจาก phone (partial match)
-    if (phone) {
-      where.phone = { contains: phone };
-    }
-
     const members = await prisma.member.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: { createdAt: 'desc' }
     });
 
     res.json({
       status: 'success',
       message: 'ดึงข้อมูลสมาชิกสำเร็จ',
       total: members.length,
-      filters: { search, email, phone },
       data: members
     });
   } catch (error) {
@@ -104,18 +77,6 @@ exports.createMember = async (req, res) => {
   }
 
   try {
-    // ตรวจสอบ email ซ้ำ
-    const existingMember = await prisma.member.findUnique({
-      where: { email }
-    });
-
-    if (existingMember) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'อีเมลนี้ถูกใช้งานแล้ว'
-      });
-    }
-
     const newMember = await prisma.member.create({
       data: {
         firstName,
@@ -164,17 +125,6 @@ exports.updateMember = async (req, res) => {
   }
 
   try {
-    const existingMember = await prisma.member.findUnique({
-      where: { email }
-    });
-
-    if (existingMember && existingMember.id !== memberId) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'อีเมลนี้ถูกใช้งานโดยสมาชิกอื่นแล้ว'
-      });
-    }
-
     const updatedMember = await prisma.member.update({
       where: { id: memberId },
       data: {
@@ -244,6 +194,203 @@ exports.deleteMember = async (req, res) => {
       status: 'error',
       message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
       error: { detail: 'ไม่สามารถลบสมาชิกได้' }
+    });
+  }
+};
+
+// GET /members/q/projection - Projection
+exports.qProjection = async (req, res) => {
+  try {
+    const select = {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+    };
+
+    const members = await prisma.member.findMany({ select });
+
+    res.json({
+      status: 'success',
+      concept: 'projection (select)',
+      description: 'เลือกเฉพาะคอลัมน์ที่ต้องการส่งกลับ',
+      select,
+      data: members,
+    });
+  } catch (error) {
+    console.error('Error in qProjection:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Projection query failed',
+    });
+  }
+};
+
+// GET /members/q/name-search - Name Search
+exports.qNameSearch = async (req, res) => {
+  try {
+    const { keyword } = req.query;
+
+    const where = {};
+
+    if (keyword) {
+      where.OR = [
+        { firstName: { contains: keyword, mode: 'insensitive' } },
+        { lastName: { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
+
+    const members = await prisma.member.findMany({ where });
+
+    res.json({
+      status: 'success',
+      concept: 'where + text operators (contains, OR)',
+      description: 'ค้นหาชื่อหรือนามสกุลที่มีคำนี้อยู่ (ไม่สนใจตัวพิมพ์เล็ก-ใหญ่)',
+      where,
+      data: members,
+    });
+  } catch (error) {
+    console.error('Error in qNameSearch:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Name search query failed',
+    });
+  }
+};
+
+// GET /members/q/email-filter - Email Filter
+exports.qEmailFilter = async (req, res) => {
+  try {
+    const { domain } = req.query;
+
+    const where = {};
+
+    if (domain) {
+      where.email = { contains: domain, mode: 'insensitive' };
+    }
+
+    const members = await prisma.member.findMany({ where });
+
+    res.json({
+      status: 'success',
+      concept: 'where + text operators (contains)',
+      description: 'กรองอีเมลที่มี domain นี้ เช่น gmail, yahoo',
+      where,
+      data: members,
+    });
+  } catch (error) {
+    console.error('Error in qEmailFilter:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Email filter query failed',
+    });
+  }
+};
+
+// GET /members/q/phone-filter - Phone Filter
+exports.qPhoneFilter = async (req, res) => {
+  try {
+    const { prefix } = req.query;
+
+    const where = {};
+
+    if (prefix) {
+      where.phone = { startsWith: prefix };
+    }
+
+    const members = await prisma.member.findMany({ where });
+
+    res.json({
+      status: 'success',
+      concept: 'where + text operators (startsWith)',
+      description: 'กรองเบอร์โทรที่ขึ้นต้นด้วย prefix เช่น 081, 089',
+      where,
+      data: members,
+    });
+  } catch (error) {
+    console.error('Error in qPhoneFilter:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Phone filter query failed',
+    });
+  }
+};
+
+// GET /members/q/sort - Sorting
+exports.qSort = async (req, res) => {
+  try {
+    const by = req.query.by || 'id';
+    const dir = req.query.dir === 'desc' ? 'desc' : 'asc';
+
+    const allowedFields = ['id', 'firstName', 'lastName', 'email', 'createdAt'];
+    const sortField = allowedFields.includes(by) ? by : 'id';
+
+    const orderBy = { [sortField]: dir };
+
+    const members = await prisma.member.findMany({ orderBy });
+
+    res.json({
+      status: 'success',
+      concept: 'orderBy (sorting)',
+      description: 'เรียงลำดับข้อมูล (asc = น้อย→มาก, desc = มาก→น้อย)',
+      orderBy,
+      data: members,
+    });
+  } catch (error) {
+    console.error('Error in qSort:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Sort query failed',
+    });
+  }
+};
+
+// GET /members/search - Real-world Search
+exports.searchMembers = async (req, res) => {
+  try {
+    const { keyword, email, phone, sort, order } = req.query;
+
+    const where = {};
+
+    if (keyword) {
+      where.OR = [
+        { firstName: { contains: keyword, mode: 'insensitive' } },
+        { lastName: { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
+
+    if (email) {
+      where.email = { contains: email, mode: 'insensitive' };
+    }
+
+    if (phone) {
+      where.phone = { contains: phone };
+    }
+
+    const allowedSortFields = ['firstName', 'lastName', 'email', 'createdAt'];
+    const sortField = allowedSortFields.includes(sort) ? sort : 'firstName';
+    const sortOrder = order === 'desc' ? 'desc' : 'asc';
+
+    const orderBy = { [sortField]: sortOrder };
+
+    const members = await prisma.member.findMany({
+      where,
+      orderBy,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'ค้นหาสมาชิกสำเร็จ',
+      total: members.length,
+      filters: { keyword, email, phone },
+      sorting: { sort: sortField, order: sortOrder },
+      data: members,
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'เกิดข้อผิดพลาดในการค้นหา',
     });
   }
 };

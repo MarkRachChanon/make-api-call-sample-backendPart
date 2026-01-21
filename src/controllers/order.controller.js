@@ -1,58 +1,16 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// สร้างเลขที่คำสั่งซื้ออัตโนมัติ
 function generateOrderNumber() {
   const timestamp = Date.now().toString();
   const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
   return `ORD${timestamp}${random}`;
 }
 
-// GET /orders - ดึงคำสั่งซื้อทั้งหมด (พร้อม Filter)
+// GET /orders - ดึงคำสั่งซื้อทั้งหมด
 exports.getOrders = async (req, res) => {
   try {
-    const { status, customerName, startDate, endDate, minAmount, maxAmount } = req.query;
-
-    // สร้าง where condition
-    const where = {};
-
-    // Filter: สถานะคำสั่งซื้อ
-    if (status) {
-      where.status = status;
-    }
-
-    // Filter: ชื่อลูกค้า
-    if (customerName) {
-      where.customerName = { contains: customerName };
-    }
-
-    // Filter: ช่วงวันที่
-    if (startDate || endDate) {
-      where.orderDate = {};
-      if (startDate) {
-        where.orderDate.gte = new Date(startDate);
-      }
-      if (endDate) {
-        // เพิ่ม 1 วันเพื่อให้ครอบคลุมทั้งวัน
-        const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        where.orderDate.lt = end;
-      }
-    }
-
-    // Filter: ช่วงยอดเงิน
-    if (minAmount || maxAmount) {
-      where.totalAmount = {};
-      if (minAmount) {
-        where.totalAmount.gte = parseFloat(minAmount);
-      }
-      if (maxAmount) {
-        where.totalAmount.lte = parseFloat(maxAmount);
-      }
-    }
-
     const orders = await prisma.order.findMany({
-      where,
       orderBy: { orderDate: 'desc' }
     });
 
@@ -60,7 +18,6 @@ exports.getOrders = async (req, res) => {
       status: 'success',
       message: 'ดึงข้อมูลคำสั่งซื้อสำเร็จ',
       total: orders.length,
-      filters: { status, customerName, startDate, endDate, minAmount, maxAmount },
       data: orders
     });
   } catch (error) {
@@ -246,6 +203,231 @@ exports.deleteOrder = async (req, res) => {
       status: 'error',
       message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
       error: { detail: 'ไม่สามารถลบคำสั่งซื้อได้' }
+    });
+  }
+};
+
+// GET /orders/q/projection - Projection
+exports.qProjection = async (req, res) => {
+  try {
+    const select = {
+      id: true,
+      orderNumber: true,
+      customerName: true,
+      totalAmount: true,
+      status: true,
+    };
+
+    const orders = await prisma.order.findMany({ select });
+
+    res.json({
+      status: 'success',
+      concept: 'projection (select)',
+      description: 'เลือกเฉพาะคอลัมน์ที่ต้องการส่งกลับ',
+      select,
+      data: orders,
+    });
+  } catch (error) {
+    console.error('Error in qProjection:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Projection query failed',
+    });
+  }
+};
+
+// GET /orders/q/status - Status Filter
+exports.qStatus = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const where = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    const orders = await prisma.order.findMany({ where });
+
+    res.json({
+      status: 'success',
+      concept: 'where + exact match',
+      description: 'กรองตามสถานะที่ระบุ (pending, completed, cancelled)',
+      where,
+      data: orders,
+    });
+  } catch (error) {
+    console.error('Error in qStatus:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Status filter query failed',
+    });
+  }
+};
+
+// GET /orders/q/amount-range - Amount Range
+exports.qAmountRange = async (req, res) => {
+  try {
+    const min = req.query.min ? parseFloat(req.query.min) : undefined;
+    const max = req.query.max ? parseFloat(req.query.max) : undefined;
+
+    const where = {
+      totalAmount: {
+        ...(min !== undefined ? { gte: min } : {}),
+        ...(max !== undefined ? { lte: max } : {}),
+      },
+    };
+
+    const orders = await prisma.order.findMany({ where });
+
+    res.json({
+      status: 'success',
+      concept: 'where + number operators (gte, lte)',
+      description: 'กรองช่วงยอดเงิน (gte = มากกว่าเท่ากับ, lte = น้อยกว่าเท่ากับ)',
+      where,
+      data: orders,
+    });
+  } catch (error) {
+    console.error('Error in qAmountRange:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Amount range query failed',
+    });
+  }
+};
+
+// GET /orders/q/date-range - Date Range
+exports.qDateRange = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const where = {};
+
+    if (startDate || endDate) {
+      where.orderDate = {};
+
+      if (startDate) {
+        where.orderDate.gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setDate(end.getDate() + 1);
+        where.orderDate.lt = end;
+      }
+    }
+
+    const orders = await prisma.order.findMany({ where });
+
+    res.json({
+      status: 'success',
+      concept: 'where + date operators (gte, lt)',
+      description: 'กรองช่วงวันที่ (gte = หลังจาก, lt = ก่อน, +1 วันเพื่อรวมวันสุดท้าย)',
+      where,
+      data: orders,
+    });
+  } catch (error) {
+    console.error('Error in qDateRange:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Date range query failed',
+    });
+  }
+};
+
+// GET /orders/q/sort - Sorting
+exports.qSort = async (req, res) => {
+  try {
+    const by = req.query.by || 'id';
+    const dir = req.query.dir === 'desc' ? 'desc' : 'asc';
+
+    const allowedFields = ['id', 'orderNumber', 'customerName', 'totalAmount', 'orderDate', 'createdAt'];
+    const sortField = allowedFields.includes(by) ? by : 'id';
+
+    const orderBy = { [sortField]: dir };
+
+    const orders = await prisma.order.findMany({ orderBy });
+
+    res.json({
+      status: 'success',
+      concept: 'orderBy (sorting)',
+      description: 'เรียงลำดับข้อมูล (asc = น้อย→มาก, desc = มาก→น้อย)',
+      orderBy,
+      data: orders,
+    });
+  } catch (error) {
+    console.error('Error in qSort:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Sort query failed',
+    });
+  }
+};
+
+// GET /orders/search - Real-world Search
+exports.searchOrders = async (req, res) => {
+  try {
+    const { keyword, status, minAmount, maxAmount, startDate, endDate, sort, order } = req.query;
+
+    const where = {};
+
+    if (keyword) {
+      where.OR = [
+        { customerName: { contains: keyword, mode: 'insensitive' } },
+        { orderNumber: { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (minAmount || maxAmount) {
+      where.totalAmount = {};
+      if (minAmount) {
+        where.totalAmount.gte = parseFloat(minAmount);
+      }
+      if (maxAmount) {
+        where.totalAmount.lte = parseFloat(maxAmount);
+      }
+    }
+
+    if (startDate || endDate) {
+      where.orderDate = {};
+      if (startDate) {
+        where.orderDate.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setDate(end.getDate() + 1);
+        where.orderDate.lt = end;
+      }
+    }
+
+    const allowedSortFields = ['orderNumber', 'customerName', 'totalAmount', 'orderDate'];
+    const sortField = allowedSortFields.includes(sort) ? sort : 'orderDate';
+    const sortOrder = order === 'desc' ? 'desc' : 'asc';
+
+    const orderBy = { [sortField]: sortOrder };
+
+    const orders = await prisma.order.findMany({
+      where,
+      orderBy,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'ค้นหาคำสั่งซื้อสำเร็จ',
+      total: orders.length,
+      filters: { keyword, status, minAmount, maxAmount, startDate, endDate },
+      sorting: { sort: sortField, order: sortOrder },
+      data: orders,
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'เกิดข้อผิดพลาดในการค้นหา',
     });
   }
 };

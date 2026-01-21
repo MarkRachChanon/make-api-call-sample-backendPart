@@ -1,1318 +1,488 @@
-# เพิ่ม Resources และ Filter ใน Backend API
+# Backend API Documentation
+
+เอกสารสรุป Backend API ที่ใช้ Prisma Query แบบแยกแนวคิดเพื่อการสอน
+
+---
 
 ## 📋 ภาพรวม
 
-เอกสารนี้สรุปการเพิ่ม 2 Resources ใหม่ (Products, Orders) และเพิ่มความสามารถ Filter ให้ทั้ง 3 Resources
+Backend มี 3 Resources:
+- **Members** - ข้อมูลสมาชิก
+- **Products** - ข้อมูลสินค้า  
+- **Orders** - ข้อมูลคำสั่งซื้อ
+
+แต่ละ Resource มี 11 Endpoints แบ่งเป็น 3 กลุ่ม:
+1. **CRUD** (5 endpoints) - Create, Read, Update, Delete
+2. **Query Demo** (5 endpoints) - สอนแนวคิด Prisma Query
+3. **Search** (1 endpoint) - ค้นหาแบบรวมเงื่อนไข
 
 ---
 
-## Resources ทั้งหมดในระบบ
+## 📊 Members API
 
-| # | Resource | คำอธิบาย | Endpoints |
-|---|----------|----------|-----------|
-| 1 | **Members** | ข้อมูลสมาชิก | 5 endpoints |
-| 2 | **Products** | ข้อมูลสินค้า | 5 endpoints |
-| 3 | **Orders** | คำสั่งซื้อ | 5 endpoints |
+### CRUD Endpoints
+```
+GET    /members           - ดึงสมาชิกทั้งหมด (เรียง createdAt desc)
+GET    /members/:id       - ดึงสมาชิกตาม ID
+POST   /members           - สร้างสมาชิกใหม่
+PUT    /members/:id       - แก้ไขสมาชิก
+DELETE /members/:id       - ลบสมาชิก
+```
 
-**รวม: 15 Endpoints**
+### Query Demo Endpoints
+```
+GET /members/q/projection
+→ Select เฉพาะ: id, firstName, lastName, email
 
----
+GET /members/q/name-search?keyword=สม
+→ ค้นหาชื่อหรือนามสกุลด้วย contains (OR)
 
-## ขั้นตอนที่ 1: แก้ไข Prisma Schema
+GET /members/q/email-filter?domain=gmail
+→ กรองอีเมลด้วย contains
 
-แก้ไขไฟล์ `prisma/schema.prisma` เพิ่ม 2 Models ใหม่:
+GET /members/q/phone-filter?prefix=081
+→ กรองเบอร์โทรด้วย startsWith
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
+GET /members/q/sort?by=firstName&dir=desc
+→ เรียงลำดับ (by: id/firstName/lastName/email/createdAt)
+```
+
+### Search Endpoint
+```
+GET /members/search?keyword=สม&email=gmail&phone=081&sort=firstName&order=asc
+→ ค้นหาแบบรวม + เรียงลำดับ
+```
+
+**Response Format (Query Demo):**
+```json
+{
+  "status": "success",
+  "concept": "where + text operators (contains, OR)",
+  "description": "ค้นหาชื่อหรือนามสกุลที่มีคำนี้อยู่",
+  "where": { "OR": [...] },
+  "data": [...]
 }
+```
 
-datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-}
-
-// Model เดิม
-model Member {
-  id        Int      @id @default(autoincrement())
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  email     String   @unique
-  phone     String?
-  address   String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("members")
-}
-
-// Model ใหม่ที่ 1: Products
-model Product {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?  @db.Text
-  price       Float
-  stock       Int      @default(0)
-  category    String?
-  imageUrl    String?  @map("image_url")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("products")
-}
-
-// Model ใหม่ที่ 2: Orders
-model Order {
-  id          Int      @id @default(autoincrement())
-  orderNumber String   @unique @map("order_number")
-  customerName String  @map("customer_name")
-  email       String
-  phone       String?
-  totalAmount Float    @map("total_amount")
-  status      String   @default("pending")
-  orderDate   DateTime @default(now()) @map("order_date")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("orders")
+**Response Format (Search):**
+```json
+{
+  "status": "success",
+  "message": "ค้นหาสมาชิกสำเร็จ",
+  "total": 5,
+  "filters": { "keyword": "สม", "email": "gmail" },
+  "sorting": { "sort": "firstName", "order": "asc" },
+  "data": [...]
 }
 ```
 
 ---
 
-## ขั้นตอนที่ 2: รัน Migration
+## 📦 Products API
 
-```bash
-npx prisma migrate dev --name add_products_orders
+### CRUD Endpoints
+```
+GET    /products          - ดึงสินค้าทั้งหมด (เฉพาะ isActive=true)
+GET    /products/:id      - ดึงสินค้าตาม ID
+POST   /products          - สร้างสินค้าใหม่
+PUT    /products/:id      - แก้ไขสินค้า
+DELETE /products/:id      - ลบสินค้า
 ```
 
-คำสั่งนี้จะ:
-- สร้างตาราง `products` และ `orders` ในฐานข้อมูล
-- Generate Prisma Client ใหม่
+### Query Demo Endpoints
+```
+GET /products/q/projection
+→ Select เฉพาะ: id, name, price, stock
+
+GET /products/q/price-range?min=100&max=500
+→ กรองช่วงราคาด้วย gte, lte
+
+GET /products/q/stock-filter?inStock=true
+→ กรองสต็อก (true: stock > 0, false: stock <= 0)
+
+GET /products/q/category?category=อาหาร
+→ กรองหมวดหมู่ด้วย contains
+
+GET /products/q/sort?by=price&dir=desc
+→ เรียงลำดับ (by: id/name/price/stock/createdAt)
+```
+
+### Search Endpoint
+```
+GET /products/search?keyword=ข้าว&category=อาหาร&minPrice=10&maxPrice=100&inStock=true&sort=price&order=asc
+→ ค้นหาแบบรวม + กรอง isActive=true อัตโนมัติ
+```
 
 ---
 
-## ขั้นตอนที่ 3: สร้าง/แก้ไข Controllers
+## 🛒 Orders API
 
-### 3.1 แก้ไขไฟล์ `src/controllers/member.controller.js` (เพิ่ม Filter)
+### CRUD Endpoints
+```
+GET    /orders            - ดึงคำสั่งซื้อทั้งหมด (เรียง orderDate desc)
+GET    /orders/:id        - ดึงคำสั่งซื้อตาม ID
+POST   /orders            - สร้างคำสั่งซื้อใหม่ (สร้าง orderNumber อัตโนมัติ)
+PUT    /orders/:id        - แก้ไขคำสั่งซื้อ
+DELETE /orders/:id        - ลบคำสั่งซื้อ
+```
+
+### Query Demo Endpoints
+```
+GET /orders/q/projection
+→ Select เฉพาะ: id, orderNumber, customerName, totalAmount, status
+
+GET /orders/q/status?status=pending
+→ กรองสถานะ (pending/completed/cancelled)
+
+GET /orders/q/amount-range?min=100&max=5000
+→ กรองช่วงยอดเงินด้วย gte, lte
+
+GET /orders/q/date-range?startDate=2024-01-01&endDate=2024-12-31
+→ กรองช่วงวันที่ด้วย gte, lt (+1 day)
+
+GET /orders/q/sort?by=orderDate&dir=desc
+→ เรียงลำดับ (by: id/orderNumber/customerName/totalAmount/orderDate/createdAt)
+```
+
+### Search Endpoint
+```
+GET /orders/search?keyword=ORD123&status=pending&minAmount=100&maxAmount=5000&startDate=2024-01-01&endDate=2024-12-31&sort=orderDate&order=desc
+→ ค้นหา customerName หรือ orderNumber (OR) + กรองตามเงื่อนไข
+```
+
+---
+
+## 🔍 Prisma Query Concepts
+
+### 1. Select (Projection)
+เลือกเฉพาะคอลัมน์ที่ต้องการ
 
 ```javascript
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-
-// GET /members - ดึงสมาชิกทั้งหมด (พร้อม Filter)
-exports.getMembers = async (req, res) => {
-  try {
-    const { search, email, phone } = req.query;
-
-    // สร้าง where condition
-    const where = {};
-
-    // Filter: ค้นหาจาก firstName หรือ lastName
-    if (search) {
-      where.OR = [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } }
-      ];
-    }
-
-    // Filter: ค้นหาจาก email (exact match)
-    if (email) {
-      where.email = { contains: email };
-    }
-
-    // Filter: ค้นหาจาก phone (partial match)
-    if (phone) {
-      where.phone = { contains: phone };
-    }
-
-    const members = await prisma.member.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'ดึงข้อมูลสมาชิกสำเร็จ',
-      total: members.length,
-      filters: { search, email, phone },
-      data: members
-    });
-  } catch (error) {
-    console.error('Error fetching members:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถดึงข้อมูลสมาชิกได้' }
-    });
-  }
+const select = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  email: true
 };
 
-// GET /members/:id - ดึงสมาชิกตาม ID
-exports.getMemberById = async (req, res) => {
-  const memberId = parseInt(req.params.id, 10);
-
-  if (isNaN(memberId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  try {
-    const member = await prisma.member.findUnique({
-      where: { id: memberId }
-    });
-
-    if (!member) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบสมาชิก'
-      });
-    }
-
-    res.json({
-      status: 'success',
-      message: 'ดึงข้อมูลสมาชิกสำเร็จ',
-      data: member
-    });
-  } catch (error) {
-    console.error('Error fetching member:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถดึงข้อมูลสมาชิกได้' }
-    });
-  }
-};
-
-// POST /members - สร้างสมาชิกใหม่
-exports.createMember = async (req, res) => {
-  const { firstName, lastName, email, phone, address } = req.body;
-
-  if (!firstName || !lastName || !email) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ข้อมูลไม่ครบถ้วน',
-      error: {
-        detail: 'firstName, lastName และ email เป็นข้อมูลที่จำเป็น'
-      }
-    });
-  }
-
-  try {
-    // ตรวจสอบ email ซ้ำ
-    const existingMember = await prisma.member.findUnique({
-      where: { email }
-    });
-
-    if (existingMember) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'อีเมลนี้ถูกใช้งานแล้ว'
-      });
-    }
-
-    const newMember = await prisma.member.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        phone: phone || null,
-        address: address || null
-      }
-    });
-
-    res.status(201).json({
-      status: 'success',
-      message: 'สร้างสมาชิกสำเร็จ',
-      data: newMember
-    });
-  } catch (error) {
-    console.error('Error creating member:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถสร้างสมาชิกได้' }
-    });
-  }
-};
-
-// PUT /members/:id - แก้ไขสมาชิก
-exports.updateMember = async (req, res) => {
-  const memberId = parseInt(req.params.id, 10);
-  const { firstName, lastName, email, phone, address } = req.body;
-
-  if (isNaN(memberId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  if (!firstName || !lastName || !email) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ข้อมูลไม่ครบถ้วน',
-      error: {
-        detail: 'firstName, lastName และ email เป็นข้อมูลที่จำเป็น'
-      }
-    });
-  }
-
-  try {
-    const existingMember = await prisma.member.findUnique({
-      where: { email }
-    });
-
-    if (existingMember && existingMember.id !== memberId) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'อีเมลนี้ถูกใช้งานโดยสมาชิกอื่นแล้ว'
-      });
-    }
-
-    const updatedMember = await prisma.member.update({
-      where: { id: memberId },
-      data: {
-        firstName,
-        lastName,
-        email,
-        phone: phone ?? null,
-        address: address ?? null
-      }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'แก้ไขสมาชิกสำเร็จ',
-      data: updatedMember
-    });
-  } catch (error) {
-    console.error('Error updating member:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบสมาชิก'
-      });
-    }
-
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถแก้ไขสมาชิกได้' }
-    });
-  }
-};
-
-// DELETE /members/:id - ลบสมาชิก
-exports.deleteMember = async (req, res) => {
-  const memberId = parseInt(req.params.id, 10);
-
-  if (isNaN(memberId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  try {
-    const deletedMember = await prisma.member.delete({
-      where: { id: memberId }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'ลบสมาชิกสำเร็จ',
-      data: deletedMember
-    });
-  } catch (error) {
-    console.error('Error deleting member:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบสมาชิก'
-      });
-    }
-
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถลบสมาชิกได้' }
-    });
-  }
-};
+await prisma.member.findMany({ select });
 ```
 
 ---
 
-### 3.2 สร้างไฟล์ `src/controllers/product.controller.js` (ใหม่)
+### 2. Where - Text Operators
 
+#### contains - ค้นหาข้อความ
 ```javascript
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+where: {
+  email: { contains: 'gmail', mode: 'insensitive' }
+}
+```
 
-// GET /products - ดึงสินค้าทั้งหมด (พร้อม Filter)
-exports.getProducts = async (req, res) => {
-  try {
-    const { search, category, minPrice, maxPrice, inStock } = req.query;
+#### startsWith - ขึ้นต้นด้วย
+```javascript
+where: {
+  phone: { startsWith: '081' }
+}
+```
 
-    // สร้าง where condition
-    const where = {};
-
-    // Filter: ค้นหาจากชื่อสินค้า
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } }
-      ];
-    }
-
-    // Filter: หมวดหมู่
-    if (category) {
-      where.category = { contains: category };
-    }
-
-    // Filter: ช่วงราคา
-    if (minPrice || maxPrice) {
-      where.price = {};
-      if (minPrice) {
-        where.price.gte = parseFloat(minPrice);
-      }
-      if (maxPrice) {
-        where.price.lte = parseFloat(maxPrice);
-      }
-    }
-
-    // Filter: มีสินค้าในสต็อก
-    if (inStock === 'true') {
-      where.stock = { gt: 0 };
-    }
-
-    // Filter: เฉพาะสินค้าที่เปิดขาย
-    where.isActive = true;
-
-    const products = await prisma.product.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'ดึงข้อมูลสินค้าสำเร็จ',
-      total: products.length,
-      filters: { search, category, minPrice, maxPrice, inStock },
-      data: products
-    });
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถดึงข้อมูลสินค้าได้' }
-    });
-  }
-};
-
-// GET /products/:id - ดึงสินค้าตาม ID
-exports.getProductById = async (req, res) => {
-  const productId = parseInt(req.params.id, 10);
-
-  if (isNaN(productId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  try {
-    const product = await prisma.product.findUnique({
-      where: { id: productId }
-    });
-
-    if (!product) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบสินค้า'
-      });
-    }
-
-    res.json({
-      status: 'success',
-      message: 'ดึงข้อมูลสินค้าสำเร็จ',
-      data: product
-    });
-  } catch (error) {
-    console.error('Error fetching product:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถดึงข้อมูลสินค้าได้' }
-    });
-  }
-};
-
-// POST /products - สร้างสินค้าใหม่
-exports.createProduct = async (req, res) => {
-  const { name, description, price, stock, category, imageUrl } = req.body;
-
-  if (!name || price === undefined) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ข้อมูลไม่ครบถ้วน',
-      error: {
-        detail: 'name และ price เป็นข้อมูลที่จำเป็น'
-      }
-    });
-  }
-
-  try {
-    const newProduct = await prisma.product.create({
-      data: {
-        name,
-        description: description || null,
-        price: parseFloat(price),
-        stock: stock || 0,
-        category: category || null,
-        imageUrl: imageUrl || null
-      }
-    });
-
-    res.status(201).json({
-      status: 'success',
-      message: 'สร้างสินค้าสำเร็จ',
-      data: newProduct
-    });
-  } catch (error) {
-    console.error('Error creating product:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถสร้างสินค้าได้' }
-    });
-  }
-};
-
-// PUT /products/:id - แก้ไขสินค้า
-exports.updateProduct = async (req, res) => {
-  const productId = parseInt(req.params.id, 10);
-  const { name, description, price, stock, category, imageUrl, isActive } = req.body;
-
-  if (isNaN(productId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  if (!name || price === undefined) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ข้อมูลไม่ครบถ้วน',
-      error: {
-        detail: 'name และ price เป็นข้อมูลที่จำเป็น'
-      }
-    });
-  }
-
-  try {
-    const updatedProduct = await prisma.product.update({
-      where: { id: productId },
-      data: {
-        name,
-        description: description ?? null,
-        price: parseFloat(price),
-        stock: stock ?? undefined,
-        category: category ?? null,
-        imageUrl: imageUrl ?? null,
-        isActive: typeof isActive === 'boolean' ? isActive : undefined
-      }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'แก้ไขสินค้าสำเร็จ',
-      data: updatedProduct
-    });
-  } catch (error) {
-    console.error('Error updating product:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบสินค้า'
-      });
-    }
-
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถแก้ไขสินค้าได้' }
-    });
-  }
-};
-
-// DELETE /products/:id - ลบสินค้า
-exports.deleteProduct = async (req, res) => {
-  const productId = parseInt(req.params.id, 10);
-
-  if (isNaN(productId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  try {
-    const deletedProduct = await prisma.product.delete({
-      where: { id: productId }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'ลบสินค้าสำเร็จ',
-      data: deletedProduct
-    });
-  } catch (error) {
-    console.error('Error deleting product:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบสินค้า'
-      });
-    }
-
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถลบสินค้าได้' }
-    });
-  }
-};
+#### OR - ค้นหาหลายฟิลด์
+```javascript
+where: {
+  OR: [
+    { firstName: { contains: 'สม', mode: 'insensitive' } },
+    { lastName: { contains: 'สม', mode: 'insensitive' } }
+  ]
+}
 ```
 
 ---
 
-### 3.3 สร้างไฟล์ `src/controllers/order.controller.js` (ใหม่)
+### 3. Where - Number Operators
+
+#### gte (>=) และ lte (<=)
+```javascript
+where: {
+  price: {
+    gte: 100,  // มากกว่าหรือเท่ากับ
+    lte: 500   // น้อยกว่าหรือเท่ากับ
+  }
+}
+```
+
+#### gt (>) และ lte (<=)
+```javascript
+// มีสินค้า
+where: { stock: { gt: 0 } }
+
+// สินค้าหมด
+where: { stock: { lte: 0 } }
+```
+
+---
+
+### 4. Where - Date Operators
 
 ```javascript
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+where: {
+  orderDate: {
+    gte: new Date('2024-01-01'),      // ตั้งแต่วันนี้
+    lt: new Date('2024-02-01')        // ก่อนวันนี้
+  }
+}
+```
 
-// สร้างเลขที่คำสั่งซื้ออัตโนมัติ
+**การจัดการวันสุดท้าย:**
+```javascript
+if (endDate) {
+  const end = new Date(endDate);
+  end.setDate(end.getDate() + 1);  // +1 วัน
+  where.orderDate.lt = end;         // < วันถัดไป = รวมวันสุดท้าย
+}
+```
+
+---
+
+### 5. OrderBy (Sorting)
+
+```javascript
+const orderBy = { firstName: 'asc' };   // น้อย → มาก (A → Z)
+const orderBy = { price: 'desc' };      // มาก → น้อย (Z → A)
+
+await prisma.member.findMany({ orderBy });
+```
+
+**Allowed Fields Validation:**
+```javascript
+const allowedFields = ['id', 'firstName', 'lastName', 'email', 'createdAt'];
+const sortField = allowedFields.includes(by) ? by : 'id';
+```
+
+---
+
+### 6. Combining Where + OrderBy
+
+```javascript
+const where = {
+  OR: [
+    { firstName: { contains: keyword, mode: 'insensitive' } },
+    { lastName: { contains: keyword, mode: 'insensitive' } }
+  ],
+  email: { contains: email, mode: 'insensitive' }
+};
+
+const orderBy = { firstName: 'asc' };
+
+await prisma.member.findMany({ where, orderBy });
+```
+
+---
+
+## 💡 Response Patterns
+
+### Query Demo Response
+แสดง Prisma Object ที่ใช้
+
+```json
+{
+  "status": "success",
+  "concept": "where + number operators (gte, lte)",
+  "description": "กรองช่วงราคา (gte = มากกว่าเท่ากับ, lte = น้อยกว่าเท่ากับ)",
+  "where": {
+    "price": {
+      "gte": 100,
+      "lte": 500
+    }
+  },
+  "data": [...]
+}
+```
+
+### Search Response
+แสดงผลลัพธ์และเงื่อนไข
+
+```json
+{
+  "status": "success",
+  "message": "ค้นหาสินค้าสำเร็จ",
+  "total": 5,
+  "filters": {
+    "keyword": "ข้าว",
+    "category": "อาหาร",
+    "minPrice": 10,
+    "maxPrice": 100,
+    "inStock": "true"
+  },
+  "sorting": {
+    "sort": "price",
+    "order": "asc"
+  },
+  "data": [...]
+}
+```
+
+### CRUD Response
+```json
+{
+  "status": "success",
+  "message": "ดึงข้อมูลสมาชิกสำเร็จ",
+  "total": 10,
+  "data": [...]
+}
+```
+
+---
+
+## 🎯 Key Implementation Details
+
+### 1. Conditional Where Building
+```javascript
+const where = {};
+
+if (keyword) {
+  where.OR = [
+    { firstName: { contains: keyword, mode: 'insensitive' } },
+    { lastName: { contains: keyword, mode: 'insensitive' } }
+  ];
+}
+
+if (email) {
+  where.email = { contains: email, mode: 'insensitive' };
+}
+```
+
+### 2. Query String Conversion
+```javascript
+const min = req.query.min ? parseFloat(req.query.min) : undefined;
+const max = req.query.max ? parseFloat(req.query.max) : undefined;
+```
+
+### 3. Date Handling
+```javascript
+const startDate = req.query.startDate;
+const endDate = req.query.endDate;
+
+if (startDate) {
+  where.orderDate = { gte: new Date(startDate) };
+}
+
+if (endDate) {
+  const end = new Date(endDate);
+  end.setDate(end.getDate() + 1);
+  where.orderDate.lt = end;
+}
+```
+
+### 4. Auto-generated Order Number
+```javascript
 function generateOrderNumber() {
   const timestamp = Date.now().toString();
   const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
   return `ORD${timestamp}${random}`;
 }
-
-// GET /orders - ดึงคำสั่งซื้อทั้งหมด (พร้อม Filter)
-exports.getOrders = async (req, res) => {
-  try {
-    const { status, customerName, startDate, endDate, minAmount, maxAmount } = req.query;
-
-    // สร้าง where condition
-    const where = {};
-
-    // Filter: สถานะคำสั่งซื้อ
-    if (status) {
-      where.status = status;
-    }
-
-    // Filter: ชื่อลูกค้า
-    if (customerName) {
-      where.customerName = { contains: customerName };
-    }
-
-    // Filter: ช่วงวันที่
-    if (startDate || endDate) {
-      where.orderDate = {};
-      if (startDate) {
-        where.orderDate.gte = new Date(startDate);
-      }
-      if (endDate) {
-        // เพิ่ม 1 วันเพื่อให้ครอบคลุมทั้งวัน
-        const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        where.orderDate.lt = end;
-      }
-    }
-
-    // Filter: ช่วงยอดเงิน
-    if (minAmount || maxAmount) {
-      where.totalAmount = {};
-      if (minAmount) {
-        where.totalAmount.gte = parseFloat(minAmount);
-      }
-      if (maxAmount) {
-        where.totalAmount.lte = parseFloat(maxAmount);
-      }
-    }
-
-    const orders = await prisma.order.findMany({
-      where,
-      orderBy: { orderDate: 'desc' }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'ดึงข้อมูลคำสั่งซื้อสำเร็จ',
-      total: orders.length,
-      filters: { status, customerName, startDate, endDate, minAmount, maxAmount },
-      data: orders
-    });
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถดึงข้อมูลคำสั่งซื้อได้' }
-    });
-  }
-};
-
-// GET /orders/:id - ดึงคำสั่งซื้อตาม ID
-exports.getOrderById = async (req, res) => {
-  const orderId = parseInt(req.params.id, 10);
-
-  if (isNaN(orderId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId }
-    });
-
-    if (!order) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบคำสั่งซื้อ'
-      });
-    }
-
-    res.json({
-      status: 'success',
-      message: 'ดึงข้อมูลคำสั่งซื้อสำเร็จ',
-      data: order
-    });
-  } catch (error) {
-    console.error('Error fetching order:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถดึงข้อมูลคำสั่งซื้อได้' }
-    });
-  }
-};
-
-// POST /orders - สร้างคำสั่งซื้อใหม่
-exports.createOrder = async (req, res) => {
-  const { customerName, email, phone, totalAmount } = req.body;
-
-  if (!customerName || !email || totalAmount === undefined) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ข้อมูลไม่ครบถ้วน',
-      error: {
-        detail: 'customerName, email และ totalAmount เป็นข้อมูลที่จำเป็น'
-      }
-    });
-  }
-
-  try {
-    const orderNumber = generateOrderNumber();
-
-    const newOrder = await prisma.order.create({
-      data: {
-        orderNumber,
-        customerName,
-        email,
-        phone: phone || null,
-        totalAmount: parseFloat(totalAmount),
-        status: 'pending'
-      }
-    });
-
-    res.status(201).json({
-      status: 'success',
-      message: 'สร้างคำสั่งซื้อสำเร็จ',
-      data: newOrder
-    });
-  } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถสร้างคำสั่งซื้อได้' }
-    });
-  }
-};
-
-// PUT /orders/:id - แก้ไขคำสั่งซื้อ
-exports.updateOrder = async (req, res) => {
-  const orderId = parseInt(req.params.id, 10);
-  const { customerName, email, phone, totalAmount, status } = req.body;
-
-  if (isNaN(orderId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  if (!customerName || !email || totalAmount === undefined) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ข้อมูลไม่ครบถ้วน',
-      error: {
-        detail: 'customerName, email และ totalAmount เป็นข้อมูลที่จำเป็น'
-      }
-    });
-  }
-
-  try {
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        customerName,
-        email,
-        phone: phone ?? null,
-        totalAmount: parseFloat(totalAmount),
-        status: status || undefined
-      }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'แก้ไขคำสั่งซื้อสำเร็จ',
-      data: updatedOrder
-    });
-  } catch (error) {
-    console.error('Error updating order:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบคำสั่งซื้อ'
-      });
-    }
-
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถแก้ไขคำสั่งซื้อได้' }
-    });
-  }
-};
-
-// DELETE /orders/:id - ลบคำสั่งซื้อ
-exports.deleteOrder = async (req, res) => {
-  const orderId = parseInt(req.params.id, 10);
-
-  if (isNaN(orderId)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'ID ไม่ถูกต้อง'
-    });
-  }
-
-  try {
-    const deletedOrder = await prisma.order.delete({
-      where: { id: orderId }
-    });
-
-    res.json({
-      status: 'success',
-      message: 'ลบคำสั่งซื้อสำเร็จ',
-      data: deletedOrder
-    });
-  } catch (error) {
-    console.error('Error deleting order:', error);
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบคำสั่งซื้อ'
-      });
-    }
-
-    res.status(500).json({
-      status: 'error',
-      message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-      error: { detail: 'ไม่สามารถลบคำสั่งซื้อได้' }
-    });
-  }
-};
 ```
 
 ---
 
-## ขั้นตอนที่ 4: สร้าง Routes
+## 📝 Route Order (สำคัญ!)
 
-### 4.1 สร้างไฟล์ `src/routes/product.routes.js`
+**Query Demo Routes ต้องอยู่เหนือ `/:id`**
 
 ```javascript
-const express = require('express');
-const router = express.Router();
-const controller = require('../controllers/product.controller');
+// ✅ ถูกต้อง
+router.get('/q/projection', controller.qProjection);
+router.get('/q/name-search', controller.qNameSearch);
+router.get('/search', controller.searchMembers);
+router.get('/', controller.getMembers);
+router.get('/:id', controller.getMemberById);  // อยู่ล่างสุด
 
-router.get('/',
-  // #swagger.tags = ['Products']
-  // #swagger.description = 'ดึงสินค้าทั้งหมด (สามารถใช้ search, category, minPrice, maxPrice, inStock เพื่อค้นหา)'
-  controller.getProducts
-);
-
-router.get('/:id',
-  // #swagger.tags = ['Products']
-  // #swagger.description = 'ดึงสินค้าตาม ID'
-  controller.getProductById
-);
-
-router.post('/',
-  // #swagger.tags = ['Products']
-  // #swagger.description = 'สร้างสินค้าใหม่'
-  controller.createProduct
-);
-
-router.put('/:id',
-  // #swagger.tags = ['Products']
-  // #swagger.description = 'แก้ไขข้อมูลสินค้า'
-  controller.updateProduct
-);
-
-router.delete('/:id',
-  // #swagger.tags = ['Products']
-  // #swagger.description = 'ลบสินค้า'
-  controller.deleteProduct
-);
-
-module.exports = router;
+// ❌ ผิด
+router.get('/:id', controller.getMemberById);   // อยู่บนสุด จะ match ทุกอย่าง
+router.get('/q/projection', controller.qProjection);  // ไม่ทำงาน!
 ```
 
 ---
 
-### 4.2 สร้างไฟล์ `src/routes/order.routes.js`
+## 🧪 ตัวอย่างการใช้งาน
 
-```javascript
-const express = require('express');
-const router = express.Router();
-const controller = require('../controllers/order.controller');
-
-router.get('/',
-  // #swagger.tags = ['Orders']
-  // #swagger.description = 'ดึงคำสั่งซื้อทั้งหมด (สามารถใช้ status, customerName, startDate, endDate, minAmount, maxAmount เพื่อค้นหา)'
-  controller.getOrders
-);
-
-router.get('/:id',
-  // #swagger.tags = ['Orders']
-  // #swagger.description = 'ดึงคำสั่งซื้อตาม ID'
-  controller.getOrderById
-);
-
-router.post('/',
-  // #swagger.tags = ['Orders']
-  // #swagger.description = 'สร้างคำสั่งซื้อใหม่'
-  controller.createOrder
-);
-
-router.put('/:id',
-  // #swagger.tags = ['Orders']
-  // #swagger.description = 'แก้ไขคำสั่งซื้อ'
-  controller.updateOrder
-);
-
-router.delete('/:id',
-  // #swagger.tags = ['Orders']
-  // #swagger.description = 'ลบคำสั่งซื้อ'
-  controller.deleteOrder
-);
-
-module.exports = router;
-```
-
----
-
-### 4.3 สร้างไฟล์ `src/routes/member.routes.js`
-
-```javascript
-const express = require('express');
-const router = express.Router();
-const controller = require('../controllers/member.controller');
-
-router.get('/',
-  // #swagger.tags = ['Members']
-  // #swagger.description = 'ดึงสมาชิกทั้งหมด (สามารถใช้ search, email, phone เพื่อค้นหา)'
-  controller.getMembers
-);
-
-router.get('/:id',
-  // #swagger.tags = ['Members']
-  // #swagger.description = 'ดึงสมาชิกตาม ID'
-  controller.getMemberById
-);
-
-router.post('/',
-  // #swagger.tags = ['Members']
-  // #swagger.description = 'สร้างสมาชิกใหม่'
-  controller.createMember
-);
-
-router.put('/:id',
-  // #swagger.tags = ['Members']
-  // #swagger.description = 'แก้ไขข้อมูลสมาชิก'
-  controller.updateMember
-);
-
-router.delete('/:id',
-  // #swagger.tags = ['Members']
-  // #swagger.description = 'ลบสมาชิก'
-  controller.deleteMember
-);
-
-module.exports = router;
-```
-
----
-
-## ขั้นตอนที่ 5: แก้ไข src/index.js
-
-เพิ่ม Routes ใหม่และ CORS:
-
-ติดตั้ง CORS Package
-
+### Members - Name Search
 ```bash
-npm install cors
+GET /members/q/name-search?keyword=สม
+
+Response:
+{
+  "status": "success",
+  "concept": "where + text operators (contains, OR)",
+  "where": {
+    "OR": [
+      { "firstName": { "contains": "สม", "mode": "insensitive" } },
+      { "lastName": { "contains": "สม", "mode": "insensitive" } }
+    ]
+  },
+  "data": [
+    { "id": 1, "firstName": "สมชาย", "lastName": "ใจดี", ... }
+  ]
+}
 ```
 
-เพิ่ม Routes
-
-```javascript
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const swaggerUi = require('swagger-ui-express');
-const swaggerFile = require('../swagger-output.json');
-const memberRoutes = require('./routes/member.routes');
-const productRoutes = require('./routes/product.routes');
-const orderRoutes = require('./routes/order.routes');
-
-const app = express();
-const PORT = process.env.PORT || 4000;
-
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// CORS (สำหรับ React Frontend)
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
-
-// Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
-
-// Routes
-app.use('/members', memberRoutes);
-app.use('/products', productRoutes);
-app.use('/orders', orderRoutes);
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: '🚀 Member Management API',
-    version: '1.0.0',
-    endpoints: {
-      documentation: `http://localhost:${PORT}/api-docs`,
-      members: `http://localhost:${PORT}/members`,
-      products: `http://localhost:${PORT}/products`,
-      orders: `http://localhost:${PORT}/orders`
-    }
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'ไม่พบเส้นทาง API ที่ร้องขอ'
-  });
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log('='.repeat(50));
-  console.log(`🚀 Server: http://localhost:${PORT}`);
-  console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
-  console.log(`👥 Members API: http://localhost:${PORT}/members`);
-  console.log(`📦 Products API: http://localhost:${PORT}/products`);
-  console.log(`🛒 Orders API: http://localhost:${PORT}/orders`);
-  console.log('='.repeat(50));
-});
-```
-
----
-
-## ขั้นตอนที่ 6: รันและทดสอบ
-
+### Products - Price Range
 ```bash
-# Generate Swagger
-npm run swagger
+GET /products/q/price-range?min=100&max=500
 
-# Start Server
-npm start
+Response:
+{
+  "status": "success",
+  "concept": "where + number operators (gte, lte)",
+  "where": {
+    "price": { "gte": 100, "lte": 500 }
+  },
+  "data": [...]
+}
 ```
 
----
+### Orders - Search
+```bash
+GET /orders/search?keyword=ORD&status=pending&sort=orderDate&order=desc
 
-## สรุป Filter ทั้งหมด
-
-### 1. Members Filters
-
-| Parameter | ตัวอย่าง | คำอธิบาย |
-|-----------|----------|----------|
-| `search` | `?search=สมชาย` | ค้นหาจาก firstName หรือ lastName |
-| `email` | `?email=@example.com` | ค้นหาจาก email |
-| `phone` | `?phone=081` | ค้นหาจากเบอร์โทร |
-
-**ตัวอย่างการใช้งาน:**
-```
-GET /members?search=สมชาย
-GET /members?email=gmail
-GET /members?search=สม&phone=081
-```
-
----
-
-### 2. Products Filters
-
-| Parameter | ตัวอย่าง | คำอธิบาย |
-|-----------|----------|----------|
-| `search` | `?search=เสื้อ` | ค้นหาจากชื่อหรือคำอธิบาย |
-| `category` | `?category=เสื้อผ้า` | กรองตามหมวดหมู่ |
-| `minPrice` | `?minPrice=100` | ราคาต่ำสุด |
-| `maxPrice` | `?maxPrice=1000` | ราคาสูงสุด |
-| `inStock` | `?inStock=true` | มีสินค้าในสต็อก |
-
-**ตัวอย่างการใช้งาน:**
-```
-GET /products?search=เสื้อ
-GET /products?category=เสื้อผ้า&minPrice=500&maxPrice=2000
-GET /products?inStock=true
-```
-
----
-
-### 3. Orders Filters
-
-| Parameter | ตัวอย่าง | คำอธิบาย |
-|-----------|----------|----------|
-| `status` | `?status=pending` | กรองตามสถานะ |
-| `customerName` | `?customerName=สมชาย` | ค้นหาจากชื่อลูกค้า |
-| `startDate` | `?startDate=2024-01-01` | วันที่เริ่มต้น |
-| `endDate` | `?endDate=2024-12-31` | วันที่สิ้นสุด |
-| `minAmount` | `?minAmount=1000` | ยอดเงินต่ำสุด |
-| `maxAmount` | `?maxAmount=5000` | ยอดเงินสูงสุด |
-
-**ตัวอย่างการใช้งาน:**
-```
-GET /orders?status=pending
-GET /orders?startDate=2024-01-01&endDate=2024-12-31
-GET /orders?status=completed&minAmount=2000
-```
-
----
-
-## Prisma Query Operators ที่ใช้
-
-| Operator | คำอธิบาย | ตัวอย่างการใช้งาน |
-|----------|----------|-------------------|
-| `contains` | ค้นหาแบบ partial match | `{ name: { contains: "keyword" } }` |
-| `gte` | มากกว่าหรือเท่ากับ (Greater Than or Equal) | `{ price: { gte: 100 } }` |
-| `lte` | น้อยกว่าหรือเท่ากับ (Less Than or Equal) | `{ price: { lte: 1000 } }` |
-| `gt` | มากกว่า (Greater Than) | `{ stock: { gt: 0 } }` |
-| `lt` | น้อยกว่า (Less Than) | `{ orderDate: { lt: date } }` |
-| `OR` | เงื่อนไข OR | `{ OR: [{ firstName: ... }, { lastName: ... }] }` |
-| `AND` | เงื่อนไข AND (default) | `{ category: ..., price: { gte: 100 } }` |
-
----
-
-## อธิบาย Prisma Error Code P2025
-
-### `error.code === 'P2025'` คืออะไร?
-
-**P2025** คือ Error Code ของ Prisma ที่แจ้งว่า **"Record not found"** (ไม่พบข้อมูล)
-
-### เกิดเมื่อไหร?
-
-เกิดเมื่อพยายาม **update** หรือ **delete** ข้อมูลที่ไม่มีในฐานข้อมูล
-
-### ตัวอย่าง:
-
-```javascript
-// ลบข้อมูล ID 999 (แต่ไม่มีในฐานข้อมูล)
-await prisma.member.delete({
-  where: { id: 999 }
-});
-
-// Prisma จะโยน Error Code: P2025
-```
-
-### ทำไมต้องเช็ค?
-
-เพื่อส่ง HTTP Status Code ที่ถูกต้องกลับไปให้ Client:
-
-```javascript
-try {
-  const deletedMember = await prisma.member.delete({
-    where: { id: memberId }
-  });
-  
-  res.json({
-    status: 'success',
-    message: 'ลบสำเร็จ',
-    data: deletedMember
-  });
-} catch (error) {
-  // เช็ค Error Code
-  if (error.code === 'P2025') {
-    return res.status(404).json({
-      status: 'error',
-      message: 'ไม่พบข้อมูล'  // 404 Not Found
-    });
-  }
-  
-  // Error อื่น ๆ
-  res.status(500).json({
-    status: 'error',
-    message: 'เกิดข้อผิดพลาด'  // 500 Internal Server Error
-  });
+Response:
+{
+  "status": "success",
+  "total": 3,
+  "filters": {
+    "keyword": "ORD",
+    "status": "pending"
+  },
+  "sorting": {
+    "sort": "orderDate",
+    "order": "desc"
+  },
+  "data": [...]
 }
 ```
 
 ---
 
-## API Endpoints Summary
+## 📚 สรุปแนวคิดการสอน
 
-### Members (5 endpoints)
-- `GET /members` - ดึงทั้งหมด (พร้อม filter)
-- `GET /members/:id` - ดึงตาม ID
-- `POST /members` - สร้างใหม่
-- `PUT /members/:id` - แก้ไข
-- `DELETE /members/:id` - ลบ
+### Query Demo Endpoints
+**จุดประสงค์:** สอน Prisma Query ทีละแนวคิด
 
-### Products (5 endpoints)
-- `GET /products` - ดึงทั้งหมด (พร้อม filter)
-- `GET /products/:id` - ดึงตาม ID
-- `POST /products` - สร้างใหม่
-- `PUT /products/:id` - แก้ไข
-- `DELETE /products/:id` - ลบ
+- แต่ละ endpoint เน้น 1 แนวคิด
+- Response แสดง Prisma object ที่ใช้
+- นักศึกษาเห็นความสัมพันธ์ระหว่าง Query String กับ Prisma Query
 
-### Orders (5 endpoints)
-- `GET /orders` - ดึงทั้งหมด (พร้อม filter)
-- `GET /orders/:id` - ดึงตาม ID
-- `POST /orders` - สร้างใหม่
-- `PUT /orders/:id` - แก้ไข
-- `DELETE /orders/:id` - ลบ
+### Search Endpoint  
+**จุดประสงค์:** แสดงการใช้งานจริง
 
-**รวม: 15 Endpoints**
+- รวมหลายแนวคิดเข้าด้วยกัน
+- พร้อมใช้งาน Production
+- แสดงวิธีจัดการ Query String หลายตัว
 
----
+### Standard CRUD
+**จุดประสงค์:** การจัดการข้อมูลพื้นฐาน
 
-## โครงสร้างโปรเจคสุดท้าย
-
-```
-member-api/
-├── prisma/
-│   ├── schema.prisma           (3 Models: Member, Product, Order)
-│   └── migrations/
-├── src/
-│   ├── controllers/
-│   │   ├── member.controller.js   (พร้อม filter)
-│   │   ├── product.controller.js  (ใหม่ + filter)
-│   │   └── order.controller.js    (ใหม่ + filter)
-│   ├── routes/
-│   │   ├── member.routes.js
-│   │   ├── product.routes.js      (ใหม่)
-│   │   └── order.routes.js        (ใหม่)
-│   └── index.js                   (เพิ่ม CORS + routes ใหม่)
-├── .env
-├── docker-compose.yml
-├── nodemon.json
-├── package.json
-├── swagger.js
-└── swagger-output.json            (Auto generate)
-```
-
----
-
-## ตัวอย่างการทดสอบ
-
-### 1. ทดสอบ Products
-
-```bash
-# สร้างสินค้า
-curl -X POST http://localhost:4000/products \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "เสื้อยืด",
-    "description": "เสื้อยืดคอกลม สีขาว",
-    "price": 299,
-    "stock": 50,
-    "category": "เสื้อผ้า"
-  }'
-
-# ค้นหาสินค้า
-curl "http://localhost:4000/products?search=เสื้อ&minPrice=200&maxPrice=500"
-
-# ดูสินค้าที่มีในสต็อก
-curl "http://localhost:4000/products?inStock=true"
-```
-
----
-
-### 2. ทดสอบ Orders
-
-```bash
-# สร้างคำสั่งซื้อ
-curl -X POST http://localhost:4000/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerName": "สมชาย ใจดี",
-    "email": "somchai@example.com",
-    "phone": "0812345678",
-    "totalAmount": 1500
-  }'
-
-# กรองตามสถานะ
-curl "http://localhost:4000/orders?status=pending"
-
-# กรองตามวันที่และยอดเงิน
-curl "http://localhost:4000/orders?startDate=2024-01-01&minAmount=1000"
-```
-
----
-
-## เสร็จสิ้น! ✅
-
-Backend API พร้อมแล้วสำหรับ:
-- ✅ **3 Resources** (Members, Products, Orders)
-- ✅ **15 Endpoints** (CRUD ครบทุก resource)
-- ✅ **Filter ทุก Resource** (พร้อม Prisma Query)
-- ✅ **CORS เปิดแล้ว** (พร้อมต่อ React Frontend)
-- ✅ **Swagger Documentation** (Auto generate)
-- ✅ **Error Handling** (รวม P2025 check)
+- ไม่มี Filter (ยกเว้น Products กรอง isActive)
+- เรียงลำดับ default (createdAt/orderDate desc)
+- Response แบบมาตรฐาน
 
 ---

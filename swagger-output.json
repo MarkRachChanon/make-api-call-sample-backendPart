@@ -21,15 +21,128 @@
         }
       }
     },
-    "/members/": {
+    "/members/q/projection": {
+      "get": {
+        "tags": [
+          "Members - Query Demo"
+        ],
+        "description": "Projection: เลือกคอลัมน์ที่ต้องการส่งกลับ (id, firstName, lastName, email)",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/members/q/name-search": {
+      "get": {
+        "tags": [
+          "Members - Query Demo"
+        ],
+        "description": "Name Search: ค้นหาชื่อหรือนามสกุลด้วย contains (keyword)",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/members/q/email-filter": {
+      "get": {
+        "tags": [
+          "Members - Query Demo"
+        ],
+        "description": "Email Filter: กรองอีเมลด้วย contains (domain เช่น gmail, yahoo)",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/members/q/phone-filter": {
+      "get": {
+        "tags": [
+          "Members - Query Demo"
+        ],
+        "description": "Phone Filter: กรองเบอร์โทรด้วย startsWith (prefix เช่น 081, 089)",
+        "parameters": [
+          {
+            "name": "prefix",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/members/q/sort": {
+      "get": {
+        "tags": [
+          "Members - Query Demo"
+        ],
+        "description": "Sorting: เรียงลำดับข้อมูล (by=firstName/lastName/email, dir=asc/desc)",
+        "parameters": [
+          {
+            "name": "by",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/members/search": {
       "get": {
         "tags": [
           "Members"
         ],
-        "description": "ดึงสมาชิกทั้งหมด (สามารถใช้ search, email, phone เพื่อค้นหา)",
+        "description": "ค้นหาสมาชิกแบบรวม (keyword, email, phone, sort, order)",
         "parameters": [
           {
-            "name": "search",
+            "name": "keyword",
             "in": "query",
             "type": "string"
           },
@@ -42,8 +155,34 @@
             "name": "phone",
             "in": "query",
             "type": "string"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "type": "string"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/members/": {
+      "get": {
+        "tags": [
+          "Members"
+        ],
+        "description": "ดึงสมาชิกทั้งหมด",
         "responses": {
           "200": {
             "description": "OK"
@@ -207,15 +346,133 @@
         }
       }
     },
-    "/products/": {
+    "/products/q/projection": {
+      "get": {
+        "tags": [
+          "Products - Query Demo"
+        ],
+        "description": "Projection: เลือกคอลัมน์ที่ต้องการส่งกลับ (id, name, price, stock)",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/products/q/price-range": {
+      "get": {
+        "tags": [
+          "Products - Query Demo"
+        ],
+        "description": "Price Range: กรองช่วงราคา (min, max) ด้วย gte, lte",
+        "parameters": [
+          {
+            "name": "min",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/products/q/stock-filter": {
+      "get": {
+        "tags": [
+          "Products - Query Demo"
+        ],
+        "description": "Stock Filter: กรองสินค้าในสต็อก (inStock=true/false) ด้วย gt, lte",
+        "parameters": [
+          {
+            "name": "inStock",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/products/q/category": {
+      "get": {
+        "tags": [
+          "Products - Query Demo"
+        ],
+        "description": "Category Filter: กรองหมวดหมู่ด้วย contains (category)",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/products/q/sort": {
+      "get": {
+        "tags": [
+          "Products - Query Demo"
+        ],
+        "description": "Sorting: เรียงลำดับข้อมูล (by=name/price/stock, dir=asc/desc)",
+        "parameters": [
+          {
+            "name": "by",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/products/search": {
       "get": {
         "tags": [
           "Products"
         ],
-        "description": "ดึงสินค้าทั้งหมด (สามารถใช้ search, category, minPrice, maxPrice, inStock เพื่อค้นหา)",
+        "description": "ค้นหาสินค้าแบบรวม (keyword, category, minPrice, maxPrice, inStock, sort, order)",
         "parameters": [
           {
-            "name": "search",
+            "name": "keyword",
             "in": "query",
             "type": "string"
           },
@@ -238,8 +495,34 @@
             "name": "inStock",
             "in": "query",
             "type": "string"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "type": "string"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/products/": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "description": "ดึงสินค้าทั้งหมด",
         "responses": {
           "200": {
             "description": "OK"
@@ -412,20 +695,153 @@
         }
       }
     },
-    "/orders/": {
+    "/orders/q/projection": {
+      "get": {
+        "tags": [
+          "Orders - Query Demo"
+        ],
+        "description": "Projection: เลือกคอลัมน์ที่ต้องการส่งกลับ (id, orderNumber, customerName, totalAmount, status)",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/orders/q/status": {
+      "get": {
+        "tags": [
+          "Orders - Query Demo"
+        ],
+        "description": "Status Filter: กรองตามสถานะ (status=pending/completed/cancelled)",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/orders/q/amount-range": {
+      "get": {
+        "tags": [
+          "Orders - Query Demo"
+        ],
+        "description": "Amount Range: กรองช่วงยอดเงิน (min, max) ด้วย gte, lte",
+        "parameters": [
+          {
+            "name": "min",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/orders/q/date-range": {
+      "get": {
+        "tags": [
+          "Orders - Query Demo"
+        ],
+        "description": "Date Range: กรองช่วงวันที่ (startDate, endDate) ด้วย gte, lt",
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/orders/q/sort": {
+      "get": {
+        "tags": [
+          "Orders - Query Demo"
+        ],
+        "description": "Sorting: เรียงลำดับข้อมูล (by=orderNumber/customerName/totalAmount/orderDate, dir=asc/desc)",
+        "parameters": [
+          {
+            "name": "by",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/orders/search": {
       "get": {
         "tags": [
           "Orders"
         ],
-        "description": "ดึงคำสั่งซื้อทั้งหมด (สามารถใช้ status, customerName, startDate, endDate, minAmount, maxAmount เพื่อค้นหา)",
+        "description": "ค้นหาคำสั่งซื้อแบบรวม (keyword, status, minAmount, maxAmount, startDate, endDate, sort, order)",
         "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "type": "string"
+          },
           {
             "name": "status",
             "in": "query",
             "type": "string"
           },
           {
-            "name": "customerName",
+            "name": "minAmount",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "maxAmount",
             "in": "query",
             "type": "string"
           },
@@ -440,16 +856,32 @@
             "type": "string"
           },
           {
-            "name": "minAmount",
+            "name": "sort",
             "in": "query",
             "type": "string"
           },
           {
-            "name": "maxAmount",
+            "name": "order",
             "in": "query",
             "type": "string"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/orders/": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "description": "ดึงคำสั่งซื้อทั้งหมด",
         "responses": {
           "200": {
             "description": "OK"
@@ -533,7 +965,7 @@
         "tags": [
           "Orders"
         ],
-        "description": "แก้ไขคำสั่งซื้อ",
+        "description": "แก้ไขข้อมูลคำสั่งซื้อ",
         "parameters": [
           {
             "name": "id",
